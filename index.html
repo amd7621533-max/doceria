@@ -230,17 +230,43 @@ section {
         appId: "1:55759390724:web:3c5daa7ae439acb10f0d51",
         measurementId: "G-J474127H6F"
     };
+	
+	// --- CONFIGURAÇÕES DE ENTREGA ---
+const LAT_LOJA = -22.94637;
+const LNG_LOJA = -43.34902;
+const VALOR_POR_KM = 1.00;
+let taxaEntrega = 0;
+
+function calcularKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Retorna a distância em KM
+}
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    let cart = [];
-    let produtoSelecionado = null;
+    // Tenta pegar o carrinho salvo. Se não existir, cria um array vazio.
+let cart = JSON.parse(localStorage.getItem('meu_carrinho')) || [];
+let produtoSelecionado = null;
 
-    // Snapshot dos produtos
+// Chama a função para atualizar a bolinha flutuante com a quantidade logo que a página carrega
+setTimeout(updateUI, 100);
+
+// Snapshot dos produtos
     onSnapshot(collection(db, "produtos"), (snap) => {
         document.querySelectorAll('.grid-produtos').forEach(g => g.innerHTML = '');
         snap.forEach(doc => {
             const p = doc.data();
+
+            // 👇 ADICIONE ESTA LINHA 👇
+            // Se o produto estiver pausado no admin, ele ignora e não renderiza na loja
+            if (p.disponivel === false) return; 
+
             const card = `
                 <div class="card">
                     <div class="card-body">
@@ -344,68 +370,140 @@ setInterval(verificarHorario, 60000);
 function updateUI() {
     const list = document.getElementById('cart-items-list');
     list.innerHTML = '';
-    let total = 0;
+    let subtotal = 0;
     let totalItens = 0;
 
     cart.forEach((item, index) => {
-        total += item.preco * item.quantidade;
+        subtotal += item.preco * item.quantidade;
         totalItens += item.quantidade;
+        
         list.innerHTML += `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-                <div style="flex: 1;">
-                    <strong>${item.nome}</strong><br>
-                    <small>R$ ${parseFloat(item.preco).toFixed(2)}</small>
-                    ${item.obs ? `<br><span style="font-size:10px; color:#EA1D2C;">Obs: ${item.obs}</span>` : ''}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                <div style="display: flex; flex-direction: column; width: 60%;">
+                    <span style="font-weight: bold; font-size: 14px;">${item.nome}</span>
+                    <span style="font-size: 13px; color: #666;">R$ ${parseFloat(item.preco).toFixed(2)} un.</span>
+                    ${item.obs ? `<span style="font-size: 11px; color: #EA1D2C; font-style: italic; margin-top: 3px;">Obs: ${item.obs}</span>` : ''}
                 </div>
-                <div style="display: flex; align-items: center;">
-                    <button class="qty-btn" onclick="updateQty(${index}, -1)">-</button>
-                    <span style="margin: 0 10px">${item.quantidade}</span>
-                    <button class="qty-btn" onclick="updateQty(${index}, 1)">+</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="qty-btn" onclick="updateQty(${index}, -1)" style="background: #eee; border: none; padding: 5px 10px; border-radius: 5px; font-weight: bold; cursor: pointer;">-</button>
+                    <span style="font-weight: bold; font-size: 14px;">${item.quantidade}</span>
+                    <button class="qty-btn" onclick="updateQty(${index}, 1)" style="background: #eee; border: none; padding: 5px 10px; border-radius: 5px; font-weight: bold; cursor: pointer;">+</button>
                 </div>
             </div>
         `;
     });
 
-    document.getElementById('cart-total-price').innerText = `R$ ${total.toFixed(2)}`;
-    document.querySelector('.cart-count').innerText = totalItens; // Conta a quantidade real de itens
+    // --- NOVA LÓGICA PARA NÃO TRAVAR O TEXTO ---
+    let textoTaxa = "A calcular";
+    const cepInput = document.getElementById('cliente-cep');
+    const temCep = cepInput && cepInput.value.replace(/\D/g, '').length === 8;
+
+    if (taxaEntrega > 0) {
+        textoTaxa = `R$ ${taxaEntrega.toFixed(2)}`;
+    } else if (temCep && taxaEntrega === 0) {
+        textoTaxa = ""; // O mapa não achou, mas o CEP está preenchido
+    }
+
+    const totalGeral = subtotal + taxaEntrega;
+
+    list.innerHTML += `
+        <div style="margin-top: 15px; padding-top: 10px; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #666;">Subtotal:</span>
+                <span style="font-weight: bold;">R$ ${subtotal.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #27ae60; font-weight: bold;">
+                <span>Taxa de Entrega:</span>
+                <span>${textoTaxa}</span>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('cart-total-price').innerText = `R$ ${totalGeral.toFixed(2)}`;
+    document.querySelector('.cart-count').innerText = totalItens;   
+    
+    localStorage.setItem('meu_carrinho', JSON.stringify(cart));
 }
 
-// --- API DE BUSCA DE CEP (VIACEP) ---
-    window.buscarCEP = async (cep) => {
-        // Limpa caracteres especiais (deixa só números)
-        const cepLimpo = cep.replace(/\D/g, '');
-        
-        // Verifica se tem 8 números
-        if (cepLimpo.length === 8) {
-            document.getElementById('cliente-endereco').value = "Buscando endereço...";
+window.buscarCEP = async (cep) => {
+    const cepLimpo = cep.replace(/\D/g, '');
+
+    // Se estiver apagando o CEP, zera a taxa
+    if (cepLimpo.length < 8) {
+        taxaEntrega = 0;
+        updateUI(); 
+        return; 
+    }
+
+    if (cepLimpo.length === 8) {
+        document.getElementById('cliente-endereco').value = "Buscando endereço e calculando taxa...";
+        taxaEntrega = 0; 
+        updateUI(); 
+
+        try {
+            // 1. Descobre o nome da rua pelo ViaCEP
+            const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+            const data = await response.json();
             
-            try {
-                const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-                const data = await response.json();
+            if (!data.erro) {
+                document.getElementById('cliente-endereco').value = `${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}`;
                 
-                if (!data.erro) {
-                    // Preenche o campo com Rua, Bairro e Cidade
-                    document.getElementById('cliente-endereco').value = `${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}`;
-                    // Joga o cursor/foco direto para o cliente digitar o número
-                    document.getElementById('cliente-numero').focus(); 
+                // 2. Busca no mapa usando o Nome da Rua e Cidade
+                const query = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brazil`;
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const geoData = await geoRes.json();
+                
+                if(geoData.length > 0) {
+                    const dist = calcularKm(LAT_LOJA, LNG_LOJA, parseFloat(geoData[0].lat), parseFloat(geoData[0].lon));
+                    
+                    // 👇 ARREDONDAMENTO PARA CIMA (TETO) 👇
+                    taxaEntrega = Math.ceil(dist * VALOR_POR_KM);
+                    
+                    if (taxaEntrega < 5) taxaEntrega = 5; // Mantém a taxa mínima de 5
+                    
                 } else {
-                    document.getElementById('cliente-endereco').value = "";
-                    alert("CEP não encontrado! Verifique se digitou corretamente.");
+                    // Se não achar a rua, tenta achar pelo menos o Bairro
+                    const fallbackQuery = `${data.bairro}, ${data.localidade}, ${data.uf}, Brazil`;
+                    const geoFallback = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackQuery)}`);
+                    const geoDataFall = await geoFallback.json();
+                    
+                    if(geoDataFall.length > 0) {
+                        const dist = calcularKm(LAT_LOJA, LNG_LOJA, parseFloat(geoDataFall[0].lat), parseFloat(geoDataFall[0].lon));
+                        
+                        // 👇 ARREDONDAMENTO PARA CIMA (TETO) 👇
+                        taxaEntrega = Math.ceil(dist * VALOR_POR_KM);
+                        
+                        if (taxaEntrega < 5) taxaEntrega = 5; // Mantém a taxa mínima de 5
+                        
+                    } else {
+                        taxaEntrega = 0; // Sinaliza para o sistema que não achou o mapa
+                    }
                 }
-            } catch (error) {
-                document.getElementById('cliente-endereco').value = "";
-                alert("Erro ao buscar o CEP. Tente digitar o endereço manualmente.");
+                
+                updateUI(); 
+                document.getElementById('cliente-numero').focus(); 
+            } else {
+                document.getElementById('cliente-endereco').value = "CEP não encontrado.";
+                taxaEntrega = 0;
+                updateUI();
             }
+        } catch (error) {
+            console.error("Erro na busca:", error);
+            document.getElementById('cliente-endereco').value = "Erro ao buscar endereço.";
+            taxaEntrega = 0;
+            updateUI();
         }
-    };
+    }
+};
 
     window.finalizarPedido = () => {
-	if (window.lojaAberta === false) {
-            return alert("Desculpe, nossa loja está fechada no momento! Confira nosso horário de funcionamento.");
+        // 1. Verificações de Segurança
+        if (window.lojaAberta === false) {
+            return alert("Desculpe, nossa loja está fechada no momento!");
         }
-	
         if (cart.length === 0) return alert("Seu carrinho está vazio!");
         
+        // 2. Coleta de dados dos campos do HTML
         const nome = document.getElementById('cliente-nome').value;
         const cep = document.getElementById('cliente-cep').value;
         const endereco = document.getElementById('cliente-endereco').value;
@@ -413,53 +511,59 @@ function updateUI() {
         const complemento = document.getElementById('cliente-complemento').value;
         const pagamento = document.getElementById('pagamento').value;
 
-        // Valida se os campos principais estão preenchidos
+        // 3. Validação de campos obrigatórios
         if (!nome || !endereco || !numero || !pagamento) {
-            return alert("Por favor, preencha seu Nome, CEP, Número e Forma de Pagamento.");
+            return alert("Por favor, preencha todos os campos obrigatórios.");
         }
         
-        // Monta o endereço bonitinho
         let enderecoCompleto = `${endereco}, Nº ${numero}`;
         if (complemento) enderecoCompleto += ` (${complemento})`;
-        if (cep) enderecoCompleto += ` - CEP: ${cep}`;
 
-        let mensagem = `*Novo Pedido - Doceria Gourmet*\n`;
-        mensagem += `*Cliente:* ${nome}\n*Endereço:* ${enderecoCompleto}\n*Pagamento:* ${pagamento}\n\n*Itens:*\n`;
+        // 4. Início da construção da mensagem (Recibo Térmico)
+        let mensagem = `==========================\n`;
+        mensagem += `   *DOCERIA GOURMET* \n`;
+        mensagem += `==========================\n\n`;
+        mensagem += `*PEDIDO:* #${Math.floor(Date.now() / 1000)}\n`;
+        mensagem += `*DATA:* ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}\n`;
+        mensagem += `--------------------------\n`;
+        mensagem += `*CLIENTE:* ${nome.toUpperCase()}\n`;
+        mensagem += `*ENDEREÇO:* ${enderecoCompleto}\n`;
+        mensagem += `*PAGAMENTO:* ${pagamento}\n`;
+        mensagem += `--------------------------\n\n`;
+        mensagem += `*ITENS DO PEDIDO:*\n`;
 
-        let total = 0;
+        // 5. Cálculo dos itens e Subtotal
+        let subtotal = 0;
         cart.forEach(item => {
-            const subtotal = item.preco * item.quantidade;
-            mensagem += `• ${item.quantidade}x *${item.nome}* - R$ ${subtotal.toFixed(2)}\n`;
-            if(item.obs) mensagem += `   _Obs: ${item.obs}_\n`; 
-            total += subtotal;
+            const valorItem = item.preco * item.quantidade;
+            mensagem += `${item.quantidade}x ${item.nome.toUpperCase()}\n`;
+            mensagem += `   R$ ${valorItem.toFixed(2)}\n`;
+            if(item.obs) mensagem += `   _OBS: ${item.obs}_\n`; 
+            mensagem += `--------------------------\n`;
+            subtotal += valorItem;
         });
 
-        mensagem += `\n*Total: R$ ${total.toFixed(2)}*`;
+        // 6. Fechamento de Valores (Passo 5)
+        // A variável 'taxaEntrega' deve vir do cálculo feito no buscarCEP
+        const totalComEntrega = subtotal + taxaEntrega;
+
+        mensagem += `\n*SUBTOTAL:* R$ ${subtotal.toFixed(2)}\n`;
+        mensagem += `*TAXA DE ENTREGA:* R$ ${taxaEntrega.toFixed(2)}\n`;
+        mensagem += `*TOTAL GERAL: R$ ${totalComEntrega.toFixed(2)}*\n`;
+        mensagem += `==========================\n`;
+        mensagem += `  _Obrigado pela preferência!_  `;
+
+        // 7. Envio para o WhatsApp
         const fone = "5521991295214"; 
-        
-        // 1. Abre o WhatsApp em uma nova aba
         window.open(`https://wa.me/${fone}?text=${encodeURIComponent(mensagem)}`, '_blank');
         
-        // 2. Fecha o modal do carrinho
+        // 8. Limpeza e Sucesso
         document.getElementById('cart-modal').style.display = 'none';
-        
-        // 3. Abre a tela de Sucesso
         document.getElementById('success-modal').style.display = 'flex';
         
-        // 4. Limpa o carrinho e os dados do formulário para o próximo pedido
         cart = [];
+        localStorage.removeItem('meu_carrinho');
         updateUI();
-        document.getElementById('cliente-nome').value = '';
-        document.getElementById('cliente-cep').value = '';
-        document.getElementById('cliente-endereco').value = '';
-        document.getElementById('cliente-numero').value = '';
-        document.getElementById('cliente-complemento').value = '';
-        document.getElementById('pagamento').value = '';
-    };
-
-    // Função para fechar a tela de sucesso
-    window.fecharSucesso = () => {
-        document.getElementById('success-modal').style.display = 'none';
     };
 	
 	// --- LÓGICA DE NAVEGAÇÃO SUAVE E MENU ATIVO ---
@@ -477,6 +581,10 @@ links.forEach(link => {
     });
 });
 
+window.fecharSucesso = () => {
+    document.getElementById('success-modal').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 </script>
 </body>

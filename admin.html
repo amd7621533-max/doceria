@@ -169,8 +169,13 @@
             };
 
             try {
-                if(id) await updateDoc(doc(db, "produtos", id), dados);
-                else await addDoc(ref, dados);
+                if(id) {
+                    await updateDoc(doc(db, "produtos", id), dados);
+                } else {
+                    // Se for um produto novo, ele entra como disponível por padrão
+                    dados.disponivel = true; 
+                    await addDoc(ref, dados);
+                }
                 window.limparForm();
             } catch (error) {
                 console.error("Erro ao salvar:", error);
@@ -186,13 +191,25 @@
             lista.innerHTML = '';
             snap.forEach(d => {
                 const p = d.data();
+                
+                // VERIFICA O STATUS DO PRODUTO
+                const isDisponivel = p.disponivel !== false; // Se não existir a tag, assume que tá liberado
+                const textoPausa = isDisponivel ? "Pausar" : "Ativar";
+                const corPausa = isDisponivel ? "#f39c12" : "#27ae60"; // Laranja para pausar, Verde para ativar
+                const opacidade = isDisponivel ? "1" : "0.5"; // Fica meio apagado se pausado
+
                 lista.innerHTML += `
-                    <div class="item-lista">
+                    <div class="item-lista" style="opacity: ${opacidade}; transition: 0.3s;">
                         <div class="item-info">
                             <img src="${p.imagem || 'https://via.placeholder.com/50'}">
-                            <span><strong>${p.nome}</strong><br><small>R$ ${p.preco}</small></span>
+                            <span>
+                                <strong>${p.nome}</strong><br>
+                                <small>R$ ${p.preco}</small>
+                                ${!isDisponivel ? '<br><b style="color:#EA1D2C; font-size:10px;">PAUSADO</b>' : ''}
+                            </span>
                         </div>
                         <div class="btns">
+                            <button style="background: ${corPausa}; color: white; border: none; width: auto; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px;" onclick="alternarStatus('${d.id}', ${isDisponivel})">${textoPausa}</button>
                             <button class="btn-edit" onclick="prepararEdicao('${d.id}', \`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.categoria}', '${p.imagem}')">Editar</button>
                             <button class="btn-del" onclick="apagar('${d.id}')">Excluir</button>
                         </div>
@@ -238,6 +255,19 @@
         };
 
         window.apagar = async (id) => { if(confirm("Excluir produto?")) await deleteDoc(doc(db, "produtos", id)); };
+		
+		window.alternarStatus = async (id, statusAtual) => {
+            try {
+                // Inverte o status no Firebase (se era true vira false, se era false vira true)
+                await updateDoc(doc(db, "produtos", id), {
+                    disponivel: !statusAtual 
+                });
+            } catch (error) {
+                console.error("Erro ao pausar:", error);
+                alert("Erro ao alterar o status do produto.");
+            }
+        };
+		
     </script>
 </body>
 </html>
