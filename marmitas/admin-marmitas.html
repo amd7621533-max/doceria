@@ -60,9 +60,15 @@
             <option value="comidas">Comidas</option>
             <option value="bebidas">Bebidas</option>
         </select>
-        <label>FOTO DO PRATO</label>
+        <label>FOTO DO PRATO (ARQUIVO)</label>
         <input type="file" id="inputArquivo" accept="image/*">
-        <img id="preview" src="">
+        
+        <div class="divisor-ou" style="text-align: center; font-size: 10px; color: #bbb; margin: 10px 0; font-weight: bold;">OU</div>
+        
+        <label>FOTO DO PRATO (LINK/URL)</label>
+        <input type="text" id="linkImagem" placeholder="Cole o link da imagem aqui...">
+        
+        <img id="preview" src="" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-top: 10px; display: none;">
         <input type="hidden" id="imagemUrl">
 
         <button id="addBtn">Salvar Produto</button>
@@ -128,16 +134,36 @@
         const ref = collection(db, "produtos");
         const addBtn = document.getElementById('addBtn');
         const inputArquivo = document.getElementById('inputArquivo');
+        const linkImagem = document.getElementById('linkImagem'); // NOVA VARIÁVEL
         const preview = document.getElementById('preview');
         const imagemUrl = document.getElementById('imagemUrl');
 
+        // Preview de Arquivo Carregado
         inputArquivo.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
+                linkImagem.value = ""; // Limpa o link se escolher arquivo
                 const reader = new FileReader();
                 reader.onloadend = () => { preview.src = reader.result; preview.style.display = "block"; };
                 reader.readAsDataURL(file);
             }
+        };
+
+        // Preview de Link Colado
+        linkImagem.oninput = () => {
+            if (linkImagem.value.trim() !== "") {
+                inputArquivo.value = ""; // Limpa o arquivo se colar link
+                preview.src = linkImagem.value;
+                preview.style.display = "block";
+            } else {
+                preview.style.display = "none";
+            }
+        };
+
+        // Botão de Cancelar
+        document.getElementById('cancelBtn').onclick = (e) => {
+            e.preventDefault();
+            window.limparForm();
         };
 
         async function subirParaCloudinary(file) {
@@ -152,13 +178,20 @@
         addBtn.onclick = async () => {
             const id = document.getElementById('idAtual').value;
             const file = inputArquivo.files[0];
+            const urlManual = linkImagem.value.trim();
             let urlFinal = imagemUrl.value;
+
             if(!document.getElementById('nome').value || !document.getElementById('preco').value) return alert("Nome e preço obrigatórios!");
 
             addBtn.innerText = "Salvando...";
             addBtn.disabled = true;
 
-            if (file) urlFinal = await subirParaCloudinary(file);
+            // Lógica de escolha da imagem
+            if (file) {
+                urlFinal = await subirParaCloudinary(file);
+            } else if (urlManual !== "") {
+                urlFinal = urlManual;
+            }
 
             const dados = {
                 nome: document.getElementById('nome').value,
@@ -168,10 +201,20 @@
                 imagem: urlFinal
             };
 
-            if(id) await updateDoc(doc(db, "produtos", id), dados);
-            else await addDoc(ref, dados);
+            try {
+                if(id) {
+                    await updateDoc(doc(db, "produtos", id), dados);
+                } else {
+                    // Produto novo entra ativado por padrão
+                    dados.disponivel = true; 
+                    await addDoc(ref, dados);
+                }
+                window.limparForm();
+            } catch (error) {
+                console.error("Erro ao salvar:", error);
+                alert("Erro ao salvar produto.");
+            }
 
-            limparForm();
             addBtn.innerText = "Salvar Produto";
             addBtn.disabled = false;
         };
@@ -182,14 +225,26 @@
                 lista.innerHTML = '';
                 snap.forEach(d => {
                     const p = d.data();
+                    
+                    // Lógica do Pausar/Ativar
+                    const isDisponivel = p.disponivel !== false; 
+                    const textoPausa = isDisponivel ? "Pausar" : "Ativar";
+                    const corPausa = isDisponivel ? "#f39c12" : "#27ae60"; 
+                    const opacidade = isDisponivel ? "1" : "0.5"; 
+
                     lista.innerHTML += `
-                        <div class="item-lista">
+                        <div class="item-lista" style="opacity: ${opacidade}; transition: 0.3s;">
                             <div class="item-info">
                                 <img src="${p.imagem || 'https://via.placeholder.com/50'}">
-                                <span><strong>${p.nome}</strong><br><small>R$ ${p.preco}</small></span>
+                                <span>
+                                    <strong>${p.nome}</strong><br>
+                                    <small>R$ ${p.preco}</small>
+                                    ${!isDisponivel ? '<br><b style="color:#EA1D2C; font-size:10px;">PAUSADO</b>' : ''}
+                                </span>
                             </div>
                             <div class="btns">
-                                <button class="btn-edit" onclick="prepararEdicao('${d.id}', '${p.nome}', \`${p.descricao || ''}\`, '${p.preco}', '${p.categoria}', '${p.imagem}')">Editar</button>
+                                <button style="background: ${corPausa}; color: white; border: none; width: auto; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px;" onclick="alternarStatus('${d.id}', ${isDisponivel})">${textoPausa}</button>
+                                <button class="btn-edit" onclick="prepararEdicao('${d.id}', \`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.categoria}', '${p.imagem}')">Editar</button>
                                 <button class="btn-del" onclick="apagar('${d.id}')">Excluir</button>
                             </div>
                         </div>
@@ -204,12 +259,20 @@
             document.getElementById('descricao').value = desc;
             document.getElementById('preco').value = preco;
             document.getElementById('categoria').value = cat;
+            
             imagemUrl.value = img;
+            document.getElementById('linkImagem').value = img || ''; // Puxa o link
+            document.getElementById('inputArquivo').value = ""; // Limpa o arquivo
+            
             preview.src = img;
             preview.style.display = img ? "block" : "none";
+            
             document.getElementById('tituloForm').innerText = "Editando Produto";
             addBtn.innerText = "Atualizar Produto";
             document.getElementById('cancelBtn').style.display = "block";
+            
+            // Scroll Suave para o topo
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         window.limparForm = () => {
@@ -218,11 +281,26 @@
             document.getElementById('descricao').value = '';
             document.getElementById('preco').value = '';
             document.getElementById('imagemUrl').value = '';
-            inputArquivo.value = '';
+            document.getElementById('linkImagem').value = '';
+            document.getElementById('inputArquivo').value = '';
             preview.style.display = "none";
             document.getElementById('tituloForm').innerText = "Novo Produto";
             addBtn.innerText = "Salvar Produto";
             document.getElementById('cancelBtn').style.display = "none";
+        };
+
+        window.apagar = async (id) => { if(confirm("Excluir produto?")) await deleteDoc(doc(db, "produtos", id)); };
+
+        // Função que altera no banco de dados se está pausado ou não
+        window.alternarStatus = async (id, statusAtual) => {
+            try {
+                await updateDoc(doc(db, "produtos", id), {
+                    disponivel: !statusAtual 
+                });
+            } catch (error) {
+                console.error("Erro ao pausar:", error);
+                alert("Erro ao alterar o status do produto.");
+            }
         };
 
         window.apagar = async (id) => { if(confirm("Excluir produto?")) await deleteDoc(doc(db, "produtos", id)); };

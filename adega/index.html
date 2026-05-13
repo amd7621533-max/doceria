@@ -29,16 +29,16 @@
         .nav-categorias { display: flex; overflow-x: auto; padding: 12px 15px; background: #fff; position: sticky; top: 0; z-index: 100; gap: 12px; border-bottom: 1px solid #f2f2f2; scrollbar-width: none; }
         .nav-categorias::-webkit-scrollbar { display: none; }
         .nav-categorias a { text-decoration: none; color: #666; font-size: 13px; font-weight: 500; white-space: nowrap; padding: 8px 15px; border-radius: 50px; border: 1px solid #dcdcdc; background: #fff; }
-        .nav-categorias a.active { background-color: #EA1D2C; color: #fff; border-color: #EA1D2C; }
+        .nav-categorias a.active { background-color: #C09020; color: #fff; border-color: #C09020; }
         .container { padding: 15px; }
-        .titulo-secao { margin: 20px 0 10px; font-size: 18px; border-left: 4px solid #EA1D2C; padding-left: 10px; }
+        .titulo-secao { margin: 20px 0 10px; font-size: 18px; border-left: 4px solid #C09020; padding-left: 10px; }
         .grid-produtos { display: flex; flex-direction: column; gap: 10px; }
         .card { display: flex; align-items: center; background: #fff; border-radius: 16px; padding: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
         .card img { width: 85px; height: 85px; object-fit: cover; border-radius: 8px; margin-left: 10px; }
         .card-body { flex: 1; }
-        .btn-adicionar { border: 1px solid #EA1D2C; color: #EA1D2C; background: transparent; padding: 5px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-adicionar { border: 1px solid #C09020; color: #C09020; background: transparent; padding: 5px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .preco { color: #333; font-weight: bold; font-size: 16px; }
-        .floating-cart { position: fixed; bottom: 20px; right: 20px; background: #EA1D2C; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(234, 29, 44, 0.3); z-index: 999; text-decoration: none; }
+        .floating-cart { position: fixed; bottom: 20px; right: 20px; background: #C09020; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(192, 144, 32, 0.4); z-index: 999; text-decoration: none; }
         .cart-count { background: #333; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; position: absolute; top: 5px; right: 5px; }
         #cart-modal, #product-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
         .cart-content { 
@@ -52,7 +52,7 @@
     max-height: 85vh; /* Limita a altura do carrinho a 85% da tela */
     overflow-y: auto; /* Cria uma barra de rolagem se passar desse limite */
 }
-        .btn-finalizar { background: #EA1D2C; color: white; width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        .btn-finalizar { background: #C09020; color: white; width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; margin-top: 20px; cursor: pointer; }
 		/* Rolagem suave ao clicar nas categorias */
 html {
     scroll-behavior: smooth;
@@ -123,15 +123,7 @@ section {
 }
 
 /* Faz o botão colar no fundo da tela */
-#btn-confirmar {
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    margin-top: 0;
-    border-radius: 0; /* Deixa o botão reto no rodapé */
-    z-index: 10;
-    box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
-}
+#btn-confirmar { background: #C09020; color: white; position: sticky; bottom: 0; left: 0; margin-top: 0; border-radius: 0; z-index: 10; box-shadow: 0 -4px 15px rgba(0,0,0,0.1); padding: 15px; border: none; width: 100%; font-weight: bold; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -145,10 +137,10 @@ section {
         <div class="detail-body">
             <h2 id="modal-nome"></h2>
             <p id="modal-desc" style="color: #666; margin: 10px 0; font-size: 14px;"></p>
-            <p id="modal-preco" style="font-weight: bold; color: #EA1D2C; font-size: 20px;"></p>
+            <p id="modal-preco" style="font-weight: bold; color: #C09020; font-size: 20px;"></p>
             
             <h4 style="margin-top: 20px;">Alguma observação?</h4>
-            <textarea id="modal-obs" placeholder="Ex: Tirar morango, sem granulado..." style="width: 100%; height: 80px; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; resize: none;"></textarea>
+            <textarea id="modal-obs" placeholder="" style="width: 100%; height: 80px; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; resize: none;"></textarea>
         </div>
 
         <button class="btn-finalizar" id="btn-confirmar">Adicionar ao Pedido</button>
@@ -157,23 +149,25 @@ section {
 
 <div class="banner"></div>
 <div class="header-content">
-    <img src="./imagens/logo.webp" class="logo">
+    <img src="./imagens/logo.jpg" class="logo" onerror="this.src='https://via.placeholder.com/80'">
     <div id="status-loja" class="status" style="transition: color 0.3s;">● VERIFICANDO...</div>
-    <h2>Doceria Gourmet</h2>
+    <h2>Aquino Drinks</h2>
 </div>
 
 <nav class="nav-categorias">
-    <a href="#bolo-pote" class="active">Bolo de Pote</a>
-    <a href="#copo-felicidade">Copo da Felicidade</a>
-    <a href="#mini-vulcao">Mini Vulcão</a>
-    <a href="#travessa">Na Travessa</a>
+    <a href="#cervejas" class="active">Cervejas</a>
+    <a href="#destilados">Combos & Destilados</a>
+    <a href="#sem-alcool">Sem Álcool</a>
+    <a href="#conveniencia">Gelo & Carvão</a>
 </nav>
 
 <div class="container">
-    <section id="bolo-pote"><h3 class="titulo-secao">Bolo de Pote</h3><div class="grid-produtos"></div></section>
-    <section id="copo-felicidade"><h3 class="titulo-secao">Copo da Felicidade</h3><div class="grid-produtos"></div></section>
-    <section id="mini-vulcao"><h3 class="titulo-secao">Mini Bolo Vulcão</h3><div class="grid-produtos"></div></section>
-    <section id="travessa"><h3 class="titulo-secao">Sobremesa na Travessa</h3><div class="grid-produtos"></div></section>
+    <div id="secoes-container">
+        <section id="cervejas"><h3 class="titulo-secao">Cervejas (Trincando! ❄️)</h3><div class="grid-produtos"></div></section>
+        <section id="destilados"><h3 class="titulo-secao">Combos & Destilados</h3><div class="grid-produtos"></div></section>
+        <section id="sem-alcool"><h3 class="titulo-secao">Sucos & Refrigerantes</h3><div class="grid-produtos"></div></section>
+        <section id="conveniencia"><h3 class="titulo-secao">Gelo, Carvão & Snacks</h3><div class="grid-produtos"></div></section>
+    </div>
 </div>
 
 <div id="cart-modal">
@@ -213,7 +207,7 @@ section {
         <div style="font-size: 60px; margin-bottom: 15px;">✅</div>
         <h2 style="color: #333; margin-bottom: 10px;">Pedido Iniciado!</h2>
         <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Seu pedido foi direcionado para o nosso WhatsApp. Continue o atendimento por lá!</p>
-        <button onclick="fecharSucesso()" style="background: #EA1D2C; color: white; width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px;">Voltar ao Cardápio</button>
+        <button onclick="fecharSucesso()" style="background: #C09020; color: white; width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px;">Voltar ao Cardápio</button>
     </div>
 </div>
 
@@ -222,13 +216,12 @@ section {
     import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-        apiKey: "AIzaSyDFGIotXXUF9VeGDXFyDwvSK_jOYnAsEto",
-        authDomain: "doceria-a6b78.firebaseapp.com",
-        projectId: "doceria-a6b78",
-        storageBucket: "doceria-a6b78.firebasestorage.app",
-        messagingSenderId: "55759390724",
-        appId: "1:55759390724:web:3c5daa7ae439acb10f0d51",
-        measurementId: "G-J474127H6F"
+        apiKey: "AIzaSyD7TTU0H9tolgAph6L67QPnNf7rNmy8Ha8",
+        authDomain: "adega-ff978.firebaseapp.com",
+        projectId: "adega-ff978",
+        storageBucket: "adega-ff978.firebasestorage.app",
+        messagingSenderId: "216639291364",
+        appId: "1:216639291364:web:e967f9b1e49f1626ded1f1"
     };
 	
 	// --- CONFIGURAÇÕES DE ENTREGA ---
@@ -575,7 +568,7 @@ window.buscarCEP = async (cep) => {
         mensagem += `  _Obrigado pela preferência!_  `;
 
         // 7. Envio para o WhatsApp redirecionando a aba que abrimos
-        const fone = "5521991295214"; 
+        const fone = "5511981386476"; 
         novaAba.location.href = `https://wa.me/${fone}?text=${encodeURIComponent(mensagem)}`;
         
         // 8. Limpeza e Sucesso
