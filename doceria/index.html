@@ -567,19 +567,48 @@ window.buscarCEP = async (cep) => {
     };
 	
 	// --- LÓGICA DE NAVEGAÇÃO SUAVE E MENU ATIVO ---
-const links = document.querySelectorAll('.nav-categorias a');
-links.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault(); 
-        links.forEach(l => l.classList.remove('active'));
-        this.classList.add('active');
-        const targetId = this.getAttribute('href');
-        const targetElement = document.querySelector(targetId);
-        if (targetElement) {
-            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+    const links = document.querySelectorAll('.nav-categorias a');
+    const sections = document.querySelectorAll('.container section');
+
+    // 1. Clique suave para rolar até a categoria (O que você já tinha)
+    links.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault(); 
+            links.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+            const targetId = this.getAttribute('href');
+            const targetElement = document.querySelector(targetId);
+            if (targetElement) {
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
     });
-});
+
+    // 2. Mudar a categoria ativa automaticamente ao rolar a página (NOVO)
+    window.addEventListener('scroll', () => {
+        let current = '';
+
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            // O número 120 é o "desconto" do espaço que o cabeçalho ocupa no topo
+            if (window.scrollY >= (sectionTop - 120)) {
+                current = section.getAttribute('id');
+            }
+        });
+
+        links.forEach(link => {
+            // Remove a classe 'active' de todos
+            link.classList.remove('active');
+            
+            // Adiciona a classe 'active' apenas no que está visível na tela
+            if (link.getAttribute('href') === `#${current}`) {
+                link.classList.add('active');
+                
+                // Mágica extra: Faz a barra de rolagem das categorias deslizar para o lado sozinha
+                link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        });
+    });
 
 window.fecharSucesso = () => {
     document.getElementById('success-modal').style.display = 'none';
