@@ -4,7 +4,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drinks Delivery - Cardápio</title>
+    <title>Tem de Tudo Delivery - Cardápio</title>
     <style>
 	
 	/* Limita a descrição do produto a 2 linhas com "..." */
@@ -153,7 +153,7 @@ section {
 <div class="header-content">
     <img src="./imagens/2.jpg" class="logo" onerror="this.src='https://via.placeholder.com/80'">
     <div id="status-loja" class="status" style="transition: color 0.3s;">● VERIFICANDO...</div>
-    <h2>Drinks Delivery</h2>
+    <h2>Tem de Tudo Delivery</h2>
 </div>
 
 <nav class="nav-categorias">
@@ -582,7 +582,7 @@ window.buscarCEP = async (cep) => {
 
         // 4. Montagem da Mensagem
         let mensagem = `==========================\n`;
-        mensagem += `   *Drinks Delivery* \n`;
+        mensagem += `   *Tem de Tudo Delivery* \n`;
         mensagem += `==========================\n\n`;
         mensagem += `*PEDIDO:* #${numeroFormatado}\n`;
         mensagem += `*DATA:* ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}\n`;
@@ -652,7 +652,7 @@ window.buscarCEP = async (cep) => {
         mensagem += `  _Obrigado pela preferência!_  `;
 
         // 7. Envio para o WhatsApp redirecionando a aba que abrimos
-        const fone = "5531993592105"; 
+        const fone = "5521971934632"; 
         novaAba.location.href = `https://wa.me/${fone}?text=${encodeURIComponent(mensagem)}`;
         
         // 8. Limpeza e Sucesso
