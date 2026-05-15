@@ -128,6 +128,8 @@ section {
 </head>
 <body>
 
+<div id="aviso-loja" style="display: none; background: #f39c12; color: #fff; text-align: center; padding: 10px; font-weight: bold; font-size: 13px; z-index: 1000; position: sticky; top: 0;"></div>
+
 <div id="product-modal">
     <div class="product-detail-content">
         <button class="btn-fechar-modal" onclick="closeProductModal()">X</button>
@@ -184,12 +186,17 @@ section {
             <input type="text" id="cliente-complemento" placeholder="Comp. (Opcional)" style="width:60%; padding:10px; border:1px solid #ddd; border-radius:8px;">
         </div>
 
-        <select id="pagamento" style="width:100%; padding:10px; margin-top:10px; border:1px solid #ddd; border-radius:8px;">
+        <select id="pagamento" onchange="verificarTroco()" style="width:100%; padding:10px; margin-top:10px; border:1px solid #ddd; border-radius:8px;">
             <option value="">Forma de Pagamento</option>
             <option value="Pix">Pix</option>
             <option value="Cartão">Cartão</option>
             <option value="Dinheiro">Dinheiro</option>
         </select>
+        
+        <div id="div-troco" style="display: none; margin-top: 10px;">
+            <input type="number" id="cliente-troco" placeholder="Troco para quanto? (Ex: 100)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+            <small style="color:#666; font-size: 11px; margin-left: 5px;">Deixe em branco se não precisar de troco.</small>
+        </div>
         <div style="margin-top: 20px; font-weight: bold; display: flex; justify-content: space-between;">
             <span>Total:</span><span id="cart-total-price">R$ 0.00</span>
         </div>
@@ -213,7 +220,7 @@ section {
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, updateDoc, increment, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD7TTU0H9tolgAph6L67QPnNf7rNmy8Ha8",
@@ -224,10 +231,16 @@ section {
         appId: "1:216639291364:web:e967f9b1e49f1626ded1f1"
     };
 	
+	
+	window.horariosFuncionamento = null;
+	
+	
 	// --- CONFIGURAÇÕES DE ENTREGA ---
 const LAT_LOJA = -22.94637;
 const LNG_LOJA = -43.34902;
-const VALOR_POR_KM = 1.00;
+window.taxaKmAtual = 1.00;
+window.taxaMinAtual = 5.00;
+window.statusManual = 'auto';
 let taxaEntrega = 0;
 
 function calcularKm(lat1, lon1, lat2, lon2) {
@@ -243,6 +256,27 @@ function calcularKm(lat1, lon1, lat2, lon2) {
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+	
+    // --- ESCUTAR CONFIGURAÇÕES DO ADMIN ---
+    onSnapshot(doc(db, "sistema", "configuracoes"), (snap) => {
+        if(snap.exists()) {
+            const config = snap.data();
+            window.horariosFuncionamento = config.horariosSemana || null;
+            window.taxaKmAtual = config.taxaKm || 1.0;
+            window.taxaMinAtual = config.taxaMin || 5.0;
+            window.statusManual = config.statusManual || 'auto';
+            
+            verificarHorario(); // Atualiza a loja em tempo real
+
+            const divAviso = document.getElementById('aviso-loja');
+            if(config.aviso && config.aviso.trim() !== '') {
+                divAviso.innerText = config.aviso;
+                divAviso.style.display = 'block';
+            } else {
+                divAviso.style.display = 'none';
+            }
+        }
+    });
     // Tenta pegar o carrinho salvo. Se não existir, cria um array vazio.
 let cart = JSON.parse(localStorage.getItem('meu_carrinho')) || [];
 let produtoSelecionado = null;
@@ -302,6 +336,17 @@ setTimeout(updateUI, 100);
         closeProductModal();
     };
 
+	window.verificarTroco = () => {
+        const pag = document.getElementById('pagamento').value;
+        const divTroco = document.getElementById('div-troco');
+        if (pag === 'Dinheiro') {
+            divTroco.style.display = 'block';
+        } else {
+            divTroco.style.display = 'none';
+            document.getElementById('cliente-troco').value = ''; // Limpa o campo se mudar pra cartão
+        }
+    };
+
     window.toggleCart = () => {
         const m = document.getElementById('cart-modal');
         m.style.display = m.style.display === 'block' ? 'none' : 'block';
@@ -315,45 +360,44 @@ setTimeout(updateUI, 100);
 
 // --- SISTEMA DE HORÁRIO DE FUNCIONAMENTO ---
 function verificarHorario() {
-    // Configuração dos horários (Formato 24h). 
-    // Use null para os dias que a loja não abre.
-    const horarios = {
-        0: { abre: 9, fecha: 22 }, // Domingo
-        1: null,                    // Segunda-feira (Fechado)
-        2: { abre: 9, fecha: 22 }, // Terça-feira
-        3: { abre: 9, fecha: 22 }, // Quarta-feira
-        4: { abre: 9, fecha: 22 }, // Quinta-feira
-        5: { abre: 9, fecha: 23 }, // Sexta-feira
-        6: { abre: 9, fecha: 23 }  // Sábado
-    };
-
     const agora = new Date();
-    const diaSemana = agora.getDay(); // 0 = Domingo, 1 = Segunda...
-    const horaAtual = agora.getHours();
-
+    const diaSemana = agora.getDay();
+    const horaCompleta = agora.getHours() * 100 + agora.getMinutes(); // Ex: 19:30 vira 1930
     const statusElement = document.getElementById('status-loja');
-    const horarioHoje = horarios[diaSemana];
 
     let estaAberto = false;
 
-    // Verifica se hoje tem horário configurado e se a hora atual está dentro do limite
-    if (horarioHoje !== null) {
-        if (horaAtual >= horarioHoje.abre && horaAtual < horarioHoje.fecha) {
-            estaAberto = true;
+    // 1. Prioridade para o Status Manual do Painel
+    if (window.statusManual === 'aberto') {
+        estaAberto = true;
+    } else if (window.statusManual === 'fechado') {
+        estaAberto = false;
+    } else if (window.horariosFuncionamento && window.horariosFuncionamento[diaSemana]) {
+        // 2. Lógica Automática baseada no Painel
+        const h = window.horariosFuncionamento[diaSemana];
+        
+        if (h.status === 'aberto' && h.abre && h.fecha) {
+            const abre = parseInt(h.abre.replace(':', ''));
+            const fecha = parseInt(h.fecha.replace(':', ''));
+            
+            if (horaCompleta >= abre && horaCompleta < fecha) {
+                estaAberto = true;
+            }
         }
     }
 
-    // Atualiza a cor e o texto na tela
+    // Aplica o status visual
     if (estaAberto) {
         statusElement.innerText = "● ABERTO AGORA";
-        statusElement.style.color = "#27ae60"; // Verde
-        window.lojaAberta = true; // Salva o status para bloquear o carrinho se precisar
+        statusElement.style.color = "#27ae60";
+        window.lojaAberta = true;
     } else {
         statusElement.innerText = "● FECHADO";
-        statusElement.style.color = "#EA1D2C"; // Vermelho
+        statusElement.style.color = "#EA1D2C";
         window.lojaAberta = false;
     }
 }
+
 
 // Roda a verificação assim que o site carrega
 verificarHorario();
@@ -450,9 +494,9 @@ window.buscarCEP = async (cep) => {
                     const dist = calcularKm(LAT_LOJA, LNG_LOJA, parseFloat(geoData[0].lat), parseFloat(geoData[0].lon));
                     
                     // 👇 ARREDONDAMENTO PARA CIMA (TETO) 👇
-                    taxaEntrega = Math.ceil(dist * VALOR_POR_KM);
+                    taxaEntrega = Math.ceil(dist * window.taxaKmAtual);
                     
-                    if (taxaEntrega < 5) taxaEntrega = 5; // Mantém a taxa mínima de 5
+                    if (taxaEntrega < window.taxaMinAtual) taxaEntrega = window.taxaMinAtual; // Mantém a taxa mínima de 5
                     
                 } else {
                     // Se não achar a rua, tenta achar pelo menos o Bairro
@@ -464,9 +508,8 @@ window.buscarCEP = async (cep) => {
                         const dist = calcularKm(LAT_LOJA, LNG_LOJA, parseFloat(geoDataFall[0].lat), parseFloat(geoDataFall[0].lon));
                         
                         // 👇 ARREDONDAMENTO PARA CIMA (TETO) 👇
-                        taxaEntrega = Math.ceil(dist * VALOR_POR_KM);
-                        
-                        if (taxaEntrega < 5) taxaEntrega = 5; // Mantém a taxa mínima de 5
+                        taxaEntrega = Math.ceil(dist * window.taxaKmAtual);
+						if (taxaEntrega < window.taxaMinAtual) taxaEntrega = window.taxaMinAtual;
                         
                     } else {
                         taxaEntrega = 0; // Sinaliza para o sistema que não achou o mapa
@@ -503,6 +546,7 @@ window.buscarCEP = async (cep) => {
         const numero = document.getElementById('cliente-numero').value;
         const complemento = document.getElementById('cliente-complemento').value;
         const pagamento = document.getElementById('pagamento').value;
+        const trocoInput = document.getElementById('cliente-troco').value; // Puxa o troco digitado
 
         if (!nome || !endereco || !numero || !pagamento) {
             return alert("Por favor, preencha todos os campos obrigatórios.");
@@ -560,10 +604,50 @@ window.buscarCEP = async (cep) => {
         });
 
         const totalComEntrega = subtotal + taxaEntrega;
+		// LÓGICA DE CÁLCULO DE TROCO
+        let trocoPara = 0;
+        let trocoCalculado = 0;
+        let infoTrocoMsg = "";
+
+        if (pagamento === 'Dinheiro' && trocoInput) {
+            trocoPara = parseFloat(trocoInput);
+            if (trocoPara < totalComEntrega) {
+                novaAba.close(); // Fecha a janela do whatsapp que abriu no fundo
+                return alert(`O valor do troco (R$ ${trocoPara}) não pode ser menor que o total do pedido (R$ ${totalComEntrega.toFixed(2)}).`);
+            }
+            trocoCalculado = trocoPara - totalComEntrega;
+            infoTrocoMsg = `\n*TROCO PARA:* R$ ${trocoPara.toFixed(2)}\n*LEVAR DE TROCO:* R$ ${trocoCalculado.toFixed(2)}\n`;
+        }
+
+        // ===== INÍCIO DA NOVA LÓGICA: SALVAR NO FIREBASE =====
+        // ===== INÍCIO DA NOVA LÓGICA: SALVAR NO FIREBASE =====
+        try {
+            const pedidoDados = {
+                numero: numeroFormatado,
+                cliente: nome,
+                endereco: enderecoCompleto,
+                pagamento: pagamento,
+                trocoPara: trocoPara, // Salva para o painel
+                trocoCalculado: trocoCalculado, // Salva para o painel
+                itens: cart, 
+                subtotal: subtotal,
+                taxaEntrega: taxaEntrega,
+                total: totalComEntrega,
+                data: new Date().toLocaleDateString('pt-BR'),
+                hora: new Date().toLocaleTimeString('pt-BR'),
+                timestamp: Date.now(), 
+                status: 'pendente' 
+            };
+            await addDoc(collection(db, "pedidos"), pedidoDados);
+        } catch (error) {
+            console.error("Erro ao salvar pedido no banco:", error);
+        }
+        // ===== FIM DA NOVA LÓGICA =====
 
         mensagem += `\n*SUBTOTAL:* R$ ${subtotal.toFixed(2)}\n`;
         mensagem += `*TAXA DE ENTREGA:* R$ ${taxaEntrega.toFixed(2)}\n`;
         mensagem += `*TOTAL GERAL: R$ ${totalComEntrega.toFixed(2)}*\n`;
+        if (infoTrocoMsg) mensagem += infoTrocoMsg; // Adiciona o troco no Zap
         mensagem += `==========================\n`;
         mensagem += `  _Obrigado pela preferência!_  `;
 
