@@ -4,7 +4,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grife Das Bebidas Delivery - Cardápio</title>
+    <title>Bebidas Delivery - Cardápio</title>
     <style>
 	
 	/* Limita a descrição do produto a 2 linhas com "..." */
@@ -122,6 +122,10 @@ section {
     border-radius: 0; /* Tira borda arredondada no topo */
 }
 
+.btn-fav { background: none; border: none; font-size: 20px; cursor: pointer; color: #ccc; transition: 0.2s; position: absolute; right: 15px; top: 15px; z-index: 10; }
+.btn-fav.favoritado { color: #e74c3c; transform: scale(1.2); }
+.card { position: relative; }
+
 /* Faz o botão colar no fundo da tela */
 #btn-confirmar { background: #C09020; color: white; position: sticky; bottom: 0; left: 0; margin-top: 0; border-radius: 0; z-index: 10; box-shadow: 0 -4px 15px rgba(0,0,0,0.1); padding: 15px; border: none; width: 100%; font-weight: bold; font-size: 16px; cursor: pointer; }
     </style>
@@ -153,21 +157,32 @@ section {
 <div class="header-content">
     <img src="./imagens/2.jpg" class="logo" onerror="this.src='https://via.placeholder.com/80'">
     <div id="status-loja" class="status" style="transition: color 0.3s;">● VERIFICANDO...</div>
-    <h2>Grife Das Bebidas Delivery</h2>
+    <h2>Bebidas Delivery</h2>
 </div>
 
 <nav class="nav-categorias">
-    <a href="#cervejas" class="active">Cervejas</a>
-    <a href="#destilados">Combos & Destilados</a>
-    <a href="#sem-alcool">Sem Álcool</a>
-    <a href="#conveniencia">Gelo & Carvão</a>
+    <a href="#long-neck">Long Neck</a>
+    <a href="#lata">Cerveja Lata</a>
+    <a href="#whisky">Whisky</a>
+    <a href="#vodka">Vodka</a>
+    <a href="#refri-2lt">Refri 2L</a>
+    <a href="#refri-lata">Refri Lata</a>
+    <a href="#energeticos">Energéticos</a>
+    <a href="#conveniencia">Gelo & Snacks</a>
 </nav>
 
-<div class="container">
+<div class="container" style="padding-bottom: 0;">
+    <input type="text" id="busca-produto" onkeyup="filtrarCardapio()" placeholder="🔍 Buscar bebida, gelo, snacks..." style="width: 100%; padding: 12px 15px; border-radius: 25px; border: 1px solid #ddd; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 10px;">
+</div>
+<div class="container" style="padding-top: 5px;">
     <div id="secoes-container">
-        <section id="cervejas"><h3 class="titulo-secao">Cervejas (Trincando! ❄️)</h3><div class="grid-produtos"></div></section>
-        <section id="destilados"><h3 class="titulo-secao">Combos & Destilados</h3><div class="grid-produtos"></div></section>
-        <section id="sem-alcool"><h3 class="titulo-secao">Sucos & Refrigerantes</h3><div class="grid-produtos"></div></section>
+        <section id="long-neck"><h3 class="titulo-secao">Cervejas (Long Neck)</h3><div class="grid-produtos"></div></section>
+        <section id="lata"><h3 class="titulo-secao">Cervejas (Lata) ❄️</h3><div class="grid-produtos"></div></section>
+        <section id="whisky"><h3 class="titulo-secao">Whisky</h3><div class="grid-produtos"></div></section>
+        <section id="vodka"><h3 class="titulo-secao">Vodka</h3><div class="grid-produtos"></div></section>
+        <section id="refri-2lt"><h3 class="titulo-secao">Refrigerantes (2 Litros)</h3><div class="grid-produtos"></div></section>
+        <section id="refri-lata"><h3 class="titulo-secao">Refrigerantes (Lata)</h3><div class="grid-produtos"></div></section>
+        <section id="energeticos"><h3 class="titulo-secao">Energéticos</h3><div class="grid-produtos"></div></section>
         <section id="conveniencia"><h3 class="titulo-secao">Gelo, Carvão & Snacks</h3><div class="grid-produtos"></div></section>
     </div>
 </div>
@@ -220,7 +235,7 @@ section {
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, updateDoc, increment, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, updateDoc, increment, addDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD7TTU0H9tolgAph6L67QPnNf7rNmy8Ha8",
@@ -280,38 +295,105 @@ function calcularKm(lat1, lon1, lat2, lon2) {
     // Tenta pegar o carrinho salvo. Se não existir, cria um array vazio.
 let cart = JSON.parse(localStorage.getItem('meu_carrinho')) || [];
 let produtoSelecionado = null;
+// --- FUNÇÃO DE SEGURANÇA (ANTI-XSS) ---
+window.escaparTexto = (texto) => {
+    if (!texto) return '';
+    return String(texto)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
 
 // Chama a função para atualizar a bolinha flutuante com a quantidade logo que a página carrega
 setTimeout(updateUI, 100);
 
 // Snapshot dos produtos
     onSnapshot(collection(db, "produtos"), (snap) => {
-        document.querySelectorAll('.grid-produtos').forEach(g => g.innerHTML = '');
-        snap.forEach(doc => {
-            const p = doc.data();
+    // Cria um objeto para guardar o HTML temporariamente sem forçar a tela
+    // Cria um objeto para guardar o HTML temporariamente sem forçar a tela
+    let htmlPorCategoria = {
+        'cervejas': '',
+        'long-neck': '',
+        'lata': '',
+        'whisky': '',
+        'vodka': '',
+        'refri-2lt': '',
+        'refri-lata': '',
+        'energeticos': '',
+        'conveniencia': ''
+    };
+    
+    const favoritos = JSON.parse(localStorage.getItem('meus_favoritos')) || [];
 
-            // 👇 ADICIONE ESTA LINHA 👇
-            // Se o produto estiver pausado no admin, ele ignora e não renderiza na loja
-            if (p.disponivel === false) return; 
+    // Monta todos os cards em texto invisível na memória
+    snap.forEach(doc => {
+        const p = doc.data();
+        if (p.disponivel === false) return; 
 
-            const card = `
-                <div class="card">
-                    <div class="card-body">
-                        <div style="font-weight: bold; margin-bottom: 3px;">${p.nome}</div>
-                        
-                        <div class="desc-produto">${p.descricao || ''}</div>
-                        
-                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
-                            <span class="preco">R$ ${parseFloat(p.preco).toFixed(2)}</span>
-                            <button class="btn-adicionar" onclick="abrirDetalhes(\`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.imagem}')">Adicionar</button>
-                        </div>
+        const isFav = favoritos.includes(doc.id);
+        const card = `
+            <div class="card" id="prod-${doc.id}">
+                <button class="btn-fav ${isFav ? 'favoritado' : ''}" onclick="toggleFavorito('${doc.id}')">❤️</button>
+                <div class="card-body">
+                    <div style="font-weight: bold; margin-bottom: 3px;">${p.nome}</div>
+                    <div class="desc-produto">${p.descricao || ''}</div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                        <span class="preco">R$ ${parseFloat(p.preco).toFixed(2)}</span>
+                        <button class="btn-adicionar" onclick="abrirDetalhes(\`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.imagem}')">Adicionar</button>
                     </div>
-                    <img src="${p.imagem || 'https://via.placeholder.com/100'}">
-                </div>`;
-            const grid = document.querySelector(`#${p.categoria} .grid-produtos`);
-            if(grid) grid.innerHTML += card;
-        });
+                </div>
+                <img src="${p.imagem || 'https://via.placeholder.com/100'}" loading="lazy">
+            </div>`;
+            
+        // Guarda o card na categoria certa
+        if (htmlPorCategoria[p.categoria] !== undefined) {
+            htmlPorCategoria[p.categoria] += card;
+        }
     });
+
+    // Injeta na tela UMA ÚNICA VEZ por categoria
+    Object.keys(htmlPorCategoria).forEach(cat => {
+        const grid = document.querySelector(`#${cat} .grid-produtos`);
+        if (grid) grid.innerHTML = htmlPorCategoria[cat];
+    });
+});
+
+window.toggleFavorito = (id) => {
+    let favs = JSON.parse(localStorage.getItem('meus_favoritos')) || [];
+    const btn = document.querySelector(`#prod-${id} .btn-fav`);
+    
+    if (favs.includes(id)) {
+        favs = favs.filter(favId => favId !== id);
+        btn.classList.remove('favoritado');
+    } else {
+        favs.push(id);
+        btn.classList.add('favoritado');
+    }
+    localStorage.setItem('meus_favoritos', JSON.stringify(favs));
+};
+
+let debounceTimerBusca;
+window.filtrarCardapio = () => {
+    // Cancela a busca anterior se o usuário digitou outra letra muito rápido
+    clearTimeout(debounceTimerBusca);
+    
+    // Inicia um timer de 300 milissegundos
+    debounceTimerBusca = setTimeout(() => {
+        const termo = document.getElementById('busca-produto').value.toLowerCase();
+        const cards = document.querySelectorAll('.card');
+        
+        cards.forEach(card => {
+            const nomeProduto = card.querySelector('.card-body div:first-child').innerText.toLowerCase();
+            if (nomeProduto.includes(termo)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }, 300); // 300ms de atraso
+};
 
     window.abrirDetalhes = (nome, desc, preco, img) => {
     produtoSelecionado = { nome, preco, img };
@@ -330,7 +412,7 @@ setTimeout(updateUI, 100);
             ...produtoSelecionado, 
             preco: parseFloat(produtoSelecionado.preco), // <--- Força a ser número
             quantidade: 1, 
-            obs: document.getElementById('modal-obs').value 
+            obs: escaparTexto(document.getElementById('modal-obs').value) 
         });
         updateUI();
         closeProductModal();
@@ -406,15 +488,17 @@ setInterval(verificarHorario, 60000);
 
 function updateUI() {
     const list = document.getElementById('cart-items-list');
-    list.innerHTML = '';
     let subtotal = 0;
     let totalItens = 0;
+    
+    // Variável rápida na memória
+    let htmlCarrinho = '';
 
     cart.forEach((item, index) => {
         subtotal += item.preco * item.quantidade;
         totalItens += item.quantidade;
         
-        list.innerHTML += `
+        htmlCarrinho += `
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px;">
                 <div style="display: flex; flex-direction: column; width: 60%;">
                     <span style="font-weight: bold; font-size: 14px;">${item.nome}</span>
@@ -430,7 +514,6 @@ function updateUI() {
         `;
     });
 
-    // --- NOVA LÓGICA PARA NÃO TRAVAR O TEXTO ---
     let textoTaxa = "A calcular";
     const cepInput = document.getElementById('cliente-cep');
     const temCep = cepInput && cepInput.value.replace(/\D/g, '').length === 8;
@@ -438,12 +521,12 @@ function updateUI() {
     if (taxaEntrega > 0) {
         textoTaxa = `R$ ${taxaEntrega.toFixed(2)}`;
     } else if (temCep && taxaEntrega === 0) {
-        textoTaxa = ""; // O mapa não achou, mas o CEP está preenchido
+        textoTaxa = ""; 
     }
 
     const totalGeral = subtotal + taxaEntrega;
 
-    list.innerHTML += `
+    htmlCarrinho += `
         <div style="margin-top: 15px; padding-top: 10px; font-size: 14px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <span style="color: #666;">Subtotal:</span>
@@ -455,6 +538,9 @@ function updateUI() {
             </div>
         </div>
     `;
+
+    // Renderiza o carrinho todo na tela de uma vez só!
+    list.innerHTML = htmlCarrinho;
 
     document.getElementById('cart-total-price').innerText = `R$ ${totalGeral.toFixed(2)}`;
     document.querySelector('.cart-count').innerText = totalItens;   
@@ -539,14 +625,14 @@ window.buscarCEP = async (cep) => {
         }
         if (cart.length === 0) return alert("Seu carrinho está vazio!");
         
-        // 2. Coleta de dados dos campos
-        const nome = document.getElementById('cliente-nome').value;
-        const cep = document.getElementById('cliente-cep').value;
-        const endereco = document.getElementById('cliente-endereco').value;
-        const numero = document.getElementById('cliente-numero').value;
-        const complemento = document.getElementById('cliente-complemento').value;
-        const pagamento = document.getElementById('pagamento').value;
-        const trocoInput = document.getElementById('cliente-troco').value; // Puxa o troco digitado
+        // 2. Coleta de dados dos campos com proteção Anti-XSS
+        const nome = escaparTexto(document.getElementById('cliente-nome').value);
+        const cep = escaparTexto(document.getElementById('cliente-cep').value);
+        const endereco = escaparTexto(document.getElementById('cliente-endereco').value);
+        const numero = escaparTexto(document.getElementById('cliente-numero').value);
+        const complemento = escaparTexto(document.getElementById('cliente-complemento').value);
+        const pagamento = escaparTexto(document.getElementById('pagamento').value);
+        const trocoInput = escaparTexto(document.getElementById('cliente-troco').value);
 
         if (!nome || !endereco || !numero || !pagamento) {
             return alert("Por favor, preencha todos os campos obrigatórios.");
@@ -556,24 +642,30 @@ window.buscarCEP = async (cep) => {
         const novaAba = window.open('', '_blank');
         novaAba.document.write("<h2 style='font-family: sans-serif; text-align: center; margin-top: 50px; color: #EA1D2C;'>Gerando número do pedido...</h2>");
 
-        // --- INÍCIO DO CONTADOR GLOBAL (01 ao infinito) ---
+        // --- INÍCIO DO CONTADOR GLOBAL TRANSACIONAL (À Prova de Falhas) ---
         let numeroPedido = 1;
         const contadorRef = doc(db, "sistema", "contador");
         
         try {
-            const docSnap = await getDoc(contadorRef);
-            if (docSnap.exists()) {
-                numeroPedido = docSnap.data().atual + 1;
-                await updateDoc(contadorRef, { atual: increment(1) }); // Soma +1 no banco
-            } else {
-                await setDoc(contadorRef, { atual: 1 }); // Cria o primeiro pedido da história
-            }
+            // runTransaction "trava" o documento para evitar duplicidade simultânea
+            await runTransaction(db, async (transaction) => {
+                const docSnap = await transaction.get(contadorRef);
+                
+                if (!docSnap.exists()) {
+                    transaction.set(contadorRef, { atual: 1 });
+                    numeroPedido = 1;
+                } else {
+                    numeroPedido = docSnap.data().atual + 1;
+                    transaction.update(contadorRef, { atual: numeroPedido });
+                }
+            });
         } catch (error) {
-            console.log("Erro no contador:", error);
-            numeroPedido = Math.floor(Math.random() * 9000) + 1000; // Backup de segurança
+            console.error("Erro no contador transacional:", error);
+            // Backup caso a transação falhe por queda brutal de internet
+            numeroPedido = Math.floor(Math.random() * 9000) + 1000; 
         }
 
-        // Formata para ter o zero na frente se for menor que 10 (Ex: 01, 09, 10, 11...)
+        // Formata para ter o zero na frente (Ex: 01, 09, 10...)
         const numeroFormatado = String(numeroPedido).padStart(2, '0');
         // --- FIM DO CONTADOR ---
         
@@ -582,7 +674,7 @@ window.buscarCEP = async (cep) => {
 
         // 4. Montagem da Mensagem
         let mensagem = `==========================\n`;
-        mensagem += `   *Grife Das Bebidas Delivery* \n`;
+        mensagem += `   *Bebidas Delivery* \n`;
         mensagem += `==========================\n\n`;
         mensagem += `*PEDIDO:* #${numeroFormatado}\n`;
         mensagem += `*DATA:* ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}\n`;
@@ -652,7 +744,7 @@ window.buscarCEP = async (cep) => {
         mensagem += `  _Obrigado pela preferência!_  `;
 
         // 7. Envio para o WhatsApp redirecionando a aba que abrimos
-        const fone = "5551997182213"; 
+        const fone = "5521999967293"; 
         novaAba.location.href = `https://wa.me/${fone}?text=${encodeURIComponent(mensagem)}`;
         
         // 8. Limpeza e Sucesso
