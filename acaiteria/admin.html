@@ -204,22 +204,26 @@
                     <label>DESCRIÇÃO</label>
                     <textarea id="descricao" placeholder="Detalhes..." style="height: 60px; resize: none;"></textarea>
                     
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                         <div style="flex: 1;">
                             <label>PREÇO (R$)</label>
                             <input type="number" id="preco" placeholder="0.00" step="0.01">
                         </div>
                         <div style="flex: 1;">
-                            <label>CATEGORIA</label>
-                            <select id="categoria">
-							<option value="acai-copo">Açaí no Copo</option>
-							<option value="acai-tigela">Açaí na Tigela</option>
-							<option value="cremes">Cremes e Sorvetes</option>
-							<option value="adicionais">Adicionais Extras</option>
-							<option value="bebidas">Bebidas</option>
-                            </select>
+                            <label>POSIÇÃO (1 = Primeiro)</label>
+                            <input type="number" id="ordem" placeholder="Ex: 1, 2, 3..." value="1">
                         </div>
                     </div>
+                    
+                    <label>CATEGORIA</label>
+                    <select id="categoria" style="margin-top: 0; margin-bottom: 15px;">
+                        <option value="acai-copo">Açaí no Copo</option>
+                        <option value="acai-tigela">Açaí na Tigela</option>
+                        <option value="cremes">Cremes e Sorvetes</option>
+                        <option value="adicionais">Adicionais Extras</option>
+                        <option value="bebidas">Bebidas</option>
+                    </select>
+                    
 					<label>IMAGEM DO PRODUTO</label>
 					<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
 						<input type="file" id="imagemFile" accept="image/*" style="margin: 0;">
@@ -238,8 +242,6 @@
                 </div>
             </div>
         </div>
-
-    </div>
 
     <script type="module">
 		import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
@@ -714,14 +716,27 @@ snap.forEach(docSnap => {
             const lista = document.getElementById('lista-estoque');
             let htmlEstoque = ''; 
             
+            // Vamos guardar num array para organizar na tela do admin também!
+            let produtosData = [];
             snap.forEach(d => {
-                const p = d.data();
+                produtosData.push({ id: d.id, ...d.data() });
+            });
+
+            // Ordena primeiro por categoria, e depois pela ordem (posição)
+            produtosData.sort((a, b) => {
+                if (a.categoria < b.categoria) return -1;
+                if (a.categoria > b.categoria) return 1;
+                return (a.ordem || 99) - (b.ordem || 99);
+            });
+            
+            produtosData.forEach(p => {
                 const isDisponivel = p.disponivel !== false; 
                 const opacidade = isDisponivel ? "1" : "0.5"; 
 
                 htmlEstoque += `
                     <div class="item-lista" style="opacity: ${opacidade};">
                         <div class="item-info">
+                            <span style="font-weight: bold; background: #eee; color: #333; padding: 5px 8px; border-radius: 5px; font-size: 11px; margin-right: 5px;">#${p.ordem || 99}</span>
                             <img src="${p.imagem || 'https://via.placeholder.com/40'}">
                             <span>
                                 <strong>${p.nome}</strong><br>
@@ -730,9 +745,9 @@ snap.forEach(docSnap => {
                             </span>
                         </div>
                         <div class="btns">
-                            <button class="btn-pequeno" style="background: ${isDisponivel ? '#f39c12' : '#2ecc71'};" onclick="alternarStatus('${d.id}', ${isDisponivel})">${isDisponivel ? "Pausar" : "Ativar"}</button>
-                            <button class="btn-pequeno" style="background: #34495e;" onclick="prepararEdicao('${d.id}', \`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.categoria}', '${p.imagem}')">Edit</button>
-                            <button class="btn-pequeno" style="background: #e74c3c;" onclick="apagar('${d.id}')">Excluir</button>
+                            <button class="btn-pequeno" style="background: ${isDisponivel ? '#f39c12' : '#2ecc71'};" onclick="alternarStatus('${p.id}', ${isDisponivel})">${isDisponivel ? "Pausar" : "Ativar"}</button>
+                            <button class="btn-pequeno" style="background: #34495e;" onclick="prepararEdicao('${p.id}', \`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.categoria}', '${p.imagem}', ${p.ordem || 99})">Edit</button>
+                            <button class="btn-pequeno" style="background: #e74c3c;" onclick="apagar('${p.id}')">Excluir</button>
                         </div>
                     </div>
                 `;
@@ -740,92 +755,90 @@ snap.forEach(docSnap => {
             
             lista.innerHTML = htmlEstoque;
         });
-        // addBtn.onclick = async () => { ...
 
-        
+        addBtn.onclick = async () => {
+            const id = document.getElementById('idAtual').value;
+            const nome = document.getElementById('nome').value;
+            const preco = document.getElementById('preco').value;
+            const arquivo = document.getElementById('imagemFile').files[0];
+            const linkDigitado = document.getElementById('imagemLink').value.trim();
+            const ordemInput = parseInt(document.getElementById('ordem').value) || 99; // <--- NOVA VARIAVEL DE ORDEM
+            let imagemFinalUrl = document.getElementById('imagemUrlAtual').value; 
 
-           addBtn.onclick = async () => {
-    const id = document.getElementById('idAtual').value;
-    const nome = document.getElementById('nome').value;
-    const preco = document.getElementById('preco').value;
-    const arquivo = document.getElementById('imagemFile').files[0];
-    const linkDigitado = document.getElementById('imagemLink').value.trim();
-    let imagemFinalUrl = document.getElementById('imagemUrlAtual').value; 
+            if(!nome || !preco) return alert("Nome e preço obrigatórios!");
+            
+            addBtn.innerText = "Fazendo Upload... ⏳";
+            addBtn.disabled = true;
 
-    if(!nome || !preco) return alert("Nome e preço obrigatórios!");
-    
-    addBtn.innerText = "Fazendo Upload... ⏳";
-    addBtn.disabled = true;
+            try {
+                if (arquivo) {
+                    const storageRef = ref(storage, `produtos/${Date.now()}_${arquivo.name}`);
+                    await uploadBytes(storageRef, arquivo);
+                    imagemFinalUrl = await getDownloadURL(storageRef);
+                } 
+                else if (linkDigitado !== "") {
+                    imagemFinalUrl = linkDigitado;
+                }
 
-    try {
-        // Se o usuário selecionou uma nova imagem do computador/celular (Prioridade 1)
-        if (arquivo) {
-            const storageRef = ref(storage, `produtos/${Date.now()}_${arquivo.name}`);
-            await uploadBytes(storageRef, arquivo);
-            imagemFinalUrl = await getDownloadURL(storageRef);
-        } 
-        // Se não enviou arquivo, mas colou um link (Prioridade 2)
-        else if (linkDigitado !== "") {
-            imagemFinalUrl = linkDigitado;
-        }
+                const dados = {
+                    nome: nome,
+                    descricao: document.getElementById('descricao').value,
+                    preco: preco,
+                    categoria: document.getElementById('categoria').value,
+                    ordem: ordemInput, // <--- SALVANDO NO BANCO DE DADOS
+                    imagem: imagemFinalUrl
+                };
 
-        const dados = {
-            nome: nome,
-            descricao: document.getElementById('descricao').value,
-            preco: preco,
-            categoria: document.getElementById('categoria').value,
-            imagem: imagemFinalUrl // Salva a URL (seja do Storage ou do Link)
+                addBtn.innerText = "Salvando...";
+
+                if(id) {
+                    await updateDoc(doc(db, "produtos", id), dados);
+                } else {
+                    dados.disponivel = true; 
+                    await addDoc(refProd, dados);
+                }
+                limparForm();
+            } catch (error) { 
+                console.error(error);
+                alert("Erro ao salvar produto."); 
+            }
+
+            addBtn.innerText = "Salvar Produto";
+            addBtn.disabled = false;
         };
 
-        addBtn.innerText = "Salvando...";
-
-        if(id) {
-            await updateDoc(doc(db, "produtos", id), dados);
-        } else {
-            dados.disponivel = true; 
-            await addDoc(refProd, dados);
-        }
-        limparForm();
-    } catch (error) { 
-        console.error(error);
-        alert("Erro ao salvar produto."); 
-    }
-
-    addBtn.innerText = "Salvar Produto";
-    addBtn.disabled = false;
-};
-
-        window.prepararEdicao = (id, nome, desc, preco, cat, img) => {
-    document.getElementById('idAtual').value = id;
-    document.getElementById('nome').value = nome;
-    document.getElementById('descricao').value = desc;
-    document.getElementById('preco').value = preco;
-    document.getElementById('categoria').value = cat;
-    document.getElementById('imagemUrlAtual').value = img;
-    document.getElementById('imagemFile').value = ''; 
-    document.getElementById('imagemLink').value = img; // Preenche o link para visualização
-    
-    document.getElementById('tituloForm').innerText = "Editando Produto";
-    addBtn.innerText = "Atualizar";
-    document.getElementById('cancelBtn').style.display = "block";
-    window.scrollTo(0,0);
-};
+        window.prepararEdicao = (id, nome, desc, preco, cat, img, ordem) => {
+            document.getElementById('idAtual').value = id;
+            document.getElementById('nome').value = nome;
+            document.getElementById('descricao').value = desc;
+            document.getElementById('preco').value = preco;
+            document.getElementById('categoria').value = cat;
+            document.getElementById('ordem').value = ordem || 99; // <--- PREENCHENDO ORDEM NA EDIÇÃO
+            document.getElementById('imagemUrlAtual').value = img;
+            document.getElementById('imagemFile').value = ''; 
+            document.getElementById('imagemLink').value = img; 
+            
+            document.getElementById('tituloForm').innerText = "Editando Produto";
+            addBtn.innerText = "Atualizar";
+            document.getElementById('cancelBtn').style.display = "block";
+            window.scrollTo(0,0);
+        };
 
         window.limparForm = () => {
-    document.getElementById('idAtual').value = '';
-    document.getElementById('nome').value = '';
-    document.getElementById('descricao').value = '';
-    document.getElementById('preco').value = '';
-    document.getElementById('imagemFile').value = '';
-    document.getElementById('imagemLink').value = ''; // Limpa o campo de link
-    document.getElementById('imagemUrlAtual').value = '';
-    document.getElementById('tituloForm').innerText = "Adicionar Produto";
-    addBtn.innerText = "Salvar Produto";
-    document.getElementById('cancelBtn').style.display = "none";
-};
+            document.getElementById('idAtual').value = '';
+            document.getElementById('nome').value = '';
+            document.getElementById('descricao').value = '';
+            document.getElementById('preco').value = '';
+            document.getElementById('ordem').value = '1'; // <--- RESETANDO ORDEM
+            document.getElementById('imagemFile').value = '';
+            document.getElementById('imagemLink').value = ''; 
+            document.getElementById('imagemUrlAtual').value = '';
+            document.getElementById('tituloForm').innerText = "Adicionar Produto";
+            addBtn.innerText = "Salvar Produto";
+            document.getElementById('cancelBtn').style.display = "none";
+        };
 
         window.apagar = async (id) => { if(confirm("Excluir produto?")) await deleteDoc(doc(db, "produtos", id)); };
-        
         window.alternarStatus = async (id, statusAtual) => { await updateDoc(doc(db, "produtos", id), { disponivel: !statusAtual }); };
         
     </script>

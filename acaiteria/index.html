@@ -22,10 +22,62 @@
 		}
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background-color: #f8f9fa; padding-bottom: 80px; }
-        .banner { width: 100%; height: 200px; background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%), url('./imagens/banner.jpg'); background-size: cover; background-position: center; }
-        .header-content { background: #fff; padding: 15px; text-align: center; border-bottom: 1px solid #eee; margin-top: -30px; border-radius: 20px 20px 0 0; position: relative; }
-        .logo { width: 80px; height: 80px; border-radius: 50%; border: 4px solid #fff; position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #eee; object-fit: cover; }
-        .status { font-size: 12px; color: #27ae60; font-weight: bold; margin-top: 45px; }
+.banner-video-container {
+    width: 100%;
+    height: 200px; /* Mesma altura do seu banner original */
+    position: relative;
+    overflow: hidden;
+}
+
+.banner-video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Faz o vídeo preencher todo o espaço sem distorcer */
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.banner-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* Recria o degradê escuro na base para dar leitura na logo */
+    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%);
+}
+.header-content { 
+    background: #fff; 
+    padding: 15px; 
+    text-align: center; 
+    border-bottom: 1px solid #eee; 
+    margin-top: -30px; /* Isso que cria o efeito de sobreposição! */
+    border-radius: 20px 20px 0 0; 
+    position: relative; 
+    z-index: 10; /* Garante que o bloco branco fique acima do vídeo */
+}
+
+.logo { 
+    width: 80px; 
+    height: 80px; 
+    border-radius: 50%; 
+    border: 4px solid #fff; 
+    position: absolute; 
+    top: -40px; /* Faz a logo subir */
+    left: 50%; 
+    transform: translateX(-50%); 
+    background: #eee; 
+    object-fit: cover; 
+    z-index: 11;
+}
+
+.status { 
+    font-size: 12px; 
+    color: #27ae60; 
+    font-weight: bold; 
+    margin-top: 45px; 
+}
         .nav-categorias { display: flex; overflow-x: auto; padding: 12px 15px; background: #fff; position: sticky; top: 0; z-index: 100; gap: 12px; border-bottom: 1px solid #f2f2f2; scrollbar-width: none; }
         .nav-categorias::-webkit-scrollbar { display: none; }
         .nav-categorias a { text-decoration: none; color: #666; font-size: 13px; font-weight: 500; white-space: nowrap; padding: 8px 15px; border-radius: 50px; border: 1px solid #dcdcdc; background: #fff; }
@@ -161,18 +213,23 @@ section {
     </div>
 </div>
 
-<div class="banner"></div>
+<div class="banner-video-container">
+    <video id="meu-video-banner" autoplay loop muted playsinline>
+        <source src="https://i.imgur.com/GZcNeHD.mp4" type="video/mp4">
+    </video>
+    <div class="banner-overlay"></div>
+</div>
+
 <div class="header-content">
-    <img src="./imagens/logo.jpg" class="logo" onerror="this.src='https://via.placeholder.com/80'">
+    <img src="imagens/logo.jpg" class="logo">
     <div id="status-loja" class="status" style="transition: color 0.3s;">● VERIFICANDO...</div>
     <h2>Açaiteria</h2>
 </div>
 
+
 <nav class="nav-categorias">
     <a href="#acai-copo" class="active">Açaí no Copo</a>
-    <a href="#acai-tigela">Açaí na Tigela</a>
     <a href="#cremes">Cremes</a>
-    <a href="#adicionais">Adicionais</a>
     <a href="#bebidas">Bebidas</a>
 </nav>
 
@@ -182,9 +239,7 @@ section {
 <div class="container" style="padding-top: 5px;">
 <div id="secoes-container">
     <section id="acai-copo"><h3 class="titulo-secao">Açaí no Copo</h3><div class="grid-produtos"></div></section>
-    <section id="acai-tigela"><h3 class="titulo-secao">Açaí na Tigela</h3><div class="grid-produtos"></div></section>
     <section id="cremes"><h3 class="titulo-secao">Cremes Especiais</h3><div class="grid-produtos"></div></section>
-    <section id="adicionais"><h3 class="titulo-secao">Adicionais e Coberturas</h3><div class="grid-produtos"></div></section>
     <section id="bebidas"><h3 class="titulo-secao">Bebidas</h3><div class="grid-produtos"></div></section>
 </div>
 </div>
@@ -312,49 +367,58 @@ window.escaparTexto = (texto) => {
 setTimeout(updateUI, 100);
 
 // Snapshot dos produtos
-    onSnapshot(collection(db, "produtos"), (snap) => {
-    // Cria um objeto para guardar o HTML temporariamente sem forçar a tela
-    // Cria um objeto para guardar o HTML temporariamente sem forçar a tela
-    let htmlPorCategoria = {
-    'acai-copo': '',
-    'acai-tigela': '',
-    'cremes': '',
-    'adicionais': '',
-    'bebidas': ''
-};
+    // Snapshot dos produtos
+onSnapshot(collection(db, "produtos"), (snap) => {
+    // 1. Array vazio para cada categoria
+    let produtosPorCategoria = {
+        'acai-copo': [],
+        'cremes': [],
+        'bebidas': []
+    };
     
     const favoritos = JSON.parse(localStorage.getItem('meus_favoritos')) || [];
 
-    // Monta todos os cards em texto invisível na memória
+    // 2. Coloca os dados da nuvem dentro dos arrays
     snap.forEach(doc => {
         const p = doc.data();
         if (p.disponivel === false) return; 
-
-        const isFav = favoritos.includes(doc.id);
-        const card = `
-            <div class="card" id="prod-${doc.id}">
-                <button class="btn-fav ${isFav ? 'favoritado' : ''}" onclick="toggleFavorito('${doc.id}')">❤️</button>
-                <div class="card-body">
-                    <div style="font-weight: bold; margin-bottom: 3px;">${p.nome}</div>
-                    <div class="desc-produto">${p.descricao || ''}</div>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
-                        <span class="preco">R$ ${parseFloat(p.preco).toFixed(2)}</span>
-                        <button class="btn-adicionar" onclick="abrirDetalhes(\`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.imagem}', '${p.categoria}')">Adicionar</button>
-                    </div>
-                </div>
-                <img src="${p.imagem || 'https://via.placeholder.com/100'}" loading="lazy">
-            </div>`;
+        p.id = doc.id; // Guarda o ID no objeto
             
-        // Guarda o card na categoria certa
-        if (htmlPorCategoria[p.categoria] !== undefined) {
-            htmlPorCategoria[p.categoria] += card;
+        // Guarda o card na categoria certa (se ela existir)
+        if (produtosPorCategoria[p.categoria] !== undefined) {
+            produtosPorCategoria[p.categoria].push(p);
         }
     });
 
-    // Injeta na tela UMA ÚNICA VEZ por categoria
-    Object.keys(htmlPorCategoria).forEach(cat => {
+    // 3. Ordena os arrays baseado na "ordem" e injeta no HTML
+    Object.keys(produtosPorCategoria).forEach(cat => {
+        
+        // MÁGICA ACONTECENDO: Ordenando a lista pela posição! (Padrão vai pro final como 99)
+        produtosPorCategoria[cat].sort((a, b) => (a.ordem || 99) - (b.ordem || 99));
+
+        let htmlFinal = '';
+        
+        // Agora sim montamos as caixinhas já na ordem certa
+        produtosPorCategoria[cat].forEach(p => {
+            const isFav = favoritos.includes(p.id);
+            htmlFinal += `
+                <div class="card" id="prod-${p.id}">
+                    <button class="btn-fav ${isFav ? 'favoritado' : ''}" onclick="toggleFavorito('${p.id}')">❤️</button>
+                    <div class="card-body">
+                        <div style="font-weight: bold; margin-bottom: 3px;">${p.nome}</div>
+                        <div class="desc-produto">${p.descricao || ''}</div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                            <span class="preco">R$ ${parseFloat(p.preco).toFixed(2)}</span>
+                            <button class="btn-adicionar" onclick="abrirDetalhes(\`${p.nome}\`, \`${p.descricao || ''}\`, '${p.preco}', '${p.imagem}', '${p.categoria}')">Adicionar</button>
+                        </div>
+                    </div>
+                    <img src="${p.imagem || 'https://via.placeholder.com/100'}" loading="lazy">
+                </div>`;
+        });
+
+        // Joga na tela
         const grid = document.querySelector(`#${cat} .grid-produtos`);
-        if (grid) grid.innerHTML = htmlPorCategoria[cat];
+        if (grid) grid.innerHTML = htmlFinal;
     });
 });
 
@@ -395,7 +459,7 @@ window.filtrarCardapio = () => {
 
 
 		// Listas fixas de complementos e coberturas
-const complementosComuns = ["Leite Ninho", "Paçoca", "Granola", "Morango", "Banana", "Kiwi", "Gotas de Chocolate", "Amendoim", "Confete (M&M's)", "Chocoball"];
+const complementosComuns = ["Leite Ninho", "Paçoca", "Granola", "Gotas de Chocolate", "Amendoim", "Confete (M&M's)", "Chocoball"];
 const coberturasComuns = ["Morango", "Chocolate", "Caramelo", "Leite Condensado", "Maracujá", "Kiwi", "Tutti-Frutti", "Uva", "Menta", "Chiclete"];
 
 window.abrirDetalhes = (nome, desc, preco, img, categoria) => {
@@ -860,6 +924,16 @@ window.fecharSucesso = () => {
     document.getElementById('success-modal').style.display = 'none';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+
+
+    // Acelera o vídeo do banner assim que a página carrega
+    document.addEventListener("DOMContentLoaded", () => {
+        const video = document.getElementById("meu-video-banner");
+        if(video) {
+            video.playbackRate = 1.3; // Define a velocidade
+        }
+    });
+
 
 </script>
 </body>
